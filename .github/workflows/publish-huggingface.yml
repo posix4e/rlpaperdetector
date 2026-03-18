@@ -1,0 +1,68 @@
+name: Publish Dataset To Hugging Face
+
+on:
+  workflow_dispatch:
+    inputs:
+      crossref_email:
+        description: Email to use for Crossref and NCBI requests
+        required: true
+        type: string
+      hf_repo_id:
+        description: Hugging Face dataset repo id, for example username/rlpaperdetector
+        required: true
+        type: string
+      max_positives:
+        description: Limit positives for this run
+        required: true
+        default: "500"
+        type: string
+      negatives_per_positive:
+        description: Matched negatives per positive
+        required: true
+        default: "2"
+        type: string
+      private_repo:
+        description: Create the Hugging Face dataset repo as private
+        required: true
+        default: false
+        type: boolean
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Hugging Face Hub
+        run: python -m pip install --upgrade pip huggingface_hub
+
+      - name: Build dataset slice
+        run: |
+          python build_dataset.py \
+            --crossref-email "${{ inputs.crossref_email }}" \
+            --max-positives "${{ inputs.max_positives }}" \
+            --negatives-per-positive "${{ inputs.negatives_per_positive }}" \
+            --output-dir data/publish
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dataset-publish-artifacts
+          path: data/publish/
+
+      - name: Publish to Hugging Face Hub
+        run: |
+          args=(--repo-id "${{ inputs.hf_repo_id }}" --folder data/publish)
+          if [ "${{ inputs.private_repo }}" = "true" ]; then
+            args+=(--private)
+          fi
+          python publish_to_huggingface.py "${args[@]}"

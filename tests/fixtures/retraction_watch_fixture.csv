@@ -1,0 +1,4 @@
+Record ID,Title,Subject,Institution,Journal,Publisher,Country,Author,URLS,ArticleType,RetractionDate,RetractionDOI,RetractionPubMedID,OriginalPaperDate,OriginalPaperDOI,OriginalPaperPubMedID,RetractionNature,Reason
+1,Retracted paper one,,,,Journal A,,,,,2024-01-01,10.1000/retract1,900001,2020-01-01,10.1000/original1,111111,Retraction,Unreliable Results
+2,Retracted paper two,,,,Journal B,,,,,2024-02-01,10.1000/retract2,900002,2021-01-01,10.1000/original2,222222,Retraction,Fabricated Data
+3,Ignore zero pmid,,,,Journal C,,,,,2024-03-01,10.1000/retract3,0,2022-01-01,10.1000/original3,0,Retraction,Other
