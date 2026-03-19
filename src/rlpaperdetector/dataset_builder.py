@@ -22,6 +22,7 @@ DEFAULT_CROSSREF_EMAIL = "test@example.org"
 NCBI_TOOL_NAME = "rlpaperdetector"
 NCBI_BASE_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
 PMID_PATTERN = re.compile(r"\b\d+\b")
+SPLIT_NAMES = ("train", "validation", "test")
 
 
 def log(message: str) -> None:
@@ -390,13 +391,15 @@ def build_dataset_rows(
                 "abstract": record.abstract,
                 "journal": record.journal,
                 "publication_year": record.publication_year or "",
-                "source": "retraction_watch_pubmed",
-                "matched_positive_pmid": "",
-                "rw_record_id": seed["rw_record_id"],
-                "rw_retraction_nature": seed["rw_retraction_nature"],
-                "rw_retraction_reason": seed["rw_retraction_reason"],
-                "rw_retraction_date": seed["rw_retraction_date"],
-                "rw_retraction_doi": seed["rw_retraction_doi"],
+                    "source": "retraction_watch_pubmed",
+                    "matched_positive_pmid": "",
+                    "group_id": "",
+                    "split": "",
+                    "rw_record_id": seed["rw_record_id"],
+                    "rw_retraction_nature": seed["rw_retraction_nature"],
+                    "rw_retraction_reason": seed["rw_retraction_reason"],
+                    "rw_retraction_date": seed["rw_retraction_date"],
+                    "rw_retraction_doi": seed["rw_retraction_doi"],
                 "rw_retraction_pmid": seed["rw_retraction_pmid"],
             }
         )
@@ -412,6 +415,8 @@ def build_dataset_rows(
                     "publication_year": negative_record.publication_year or "",
                     "source": "pubmed_matched_negative",
                     "matched_positive_pmid": pmid,
+                    "group_id": "",
+                    "split": "",
                     "rw_record_id": "",
                     "rw_retraction_nature": "",
                     "rw_retraction_reason": "",
@@ -423,7 +428,149 @@ def build_dataset_rows(
     return rows
 
 
-def write_outputs(rows: list[dict[str, str | int]], output_dir: Path, summary: dict[str, int | str]) -> None:
+def parse_optional_year(value: str | int | None) -> int | None:
+    if isinstance(value, int):
+        return value
+    text = clean_text(str(value or ""))
+    return int(text) if text.isdigit() else None
+
+
+def assign_splits(rows: list[dict[str, str | int]]) -> dict[str, int]:
+    grouped_rows: dict[str, list[dict[str, str | int]]] = defaultdict(list)
+    group_years: dict[str, int | None] = {}
+
+    for row in rows:
+        label = int(row["label"])
+        group_id = str(row["pmid"] if label == 1 else row["matched_positive_pmid"])
+        row["group_id"] = group_id
+        grouped_rows[group_id].append(row)
+        if group_id not in group_years or group_years[group_id] is None:
+            group_years[group_id] = parse_optional_year(row.get("publication_year"))
+        if label == 1:
+            group_years[group_id] = parse_optional_year(row.get("publication_year"))
+
+    ordered_groups = sorted(
+        grouped_rows,
+        key=lambda group_id: (
+            group_years[group_id] is None,
+            group_years[group_id] if group_years[group_id] is not None else 0,
+            group_id,
+        ),
+    )
+
+    total_groups = len(ordered_groups)
+    if total_groups == 0:
+        return {split: 0 for split in SPLIT_NAMES}
+
+    test_groups = 1 if total_groups > 1 else 0
+    validation_groups = max(1, total_groups // 10) if total_groups >= 10 else 0
+    train_groups = max(0, total_groups - validation_groups - test_groups)
+
+    split_by_group: dict[str, str] = {}
+    for index, group_id in enumerate(ordered_groups):
+        if index < train_groups:
+            split = "train"
+        elif index < train_groups + validation_groups:
+            split = "validation"
+        else:
+            split = "test"
+        split_by_group[group_id] = split
+
+    split_counts = {split: 0 for split in SPLIT_NAMES}
+    for row in rows:
+        split = split_by_group[str(row["group_id"])]
+        row["split"] = split
+        split_counts[split] += 1
+    return split_counts
+
+
+def write_jsonl(path: Path, rows: list[dict[str, str | int]]) -> None:
+    with path.open("w", encoding="utf-8") as handle:
+        for row in rows:
+            handle.write(json.dumps(row, ensure_ascii=True) + "\n")
+
+
+def render_dataset_card(summary: dict[str, object]) -> str:
+    split_counts = summary.get("split_counts", {})
+    split_lines = "\n".join(
+        f"- `{split}`: {split_counts.get(split, 0)} rows"
+        for split in SPLIT_NAMES
+    )
+    return f"""---
+license: other
+task_categories:
+- text-classification
+pretty_name: rlpaperdetector
+---
+
+# rlpaperdetector
+
+Derived dataset for retraction prediction experiments built from Crossref Retraction Watch records and PubMed metadata.
+
+## Contents
+
+{split_lines}
+
+## Schema
+
+- `label`: `1` for original papers that were later retracted, `0` for matched PubMed negatives
+- `pmid`, `doi`, `title`, `abstract`, `journal`, `publication_year`
+- `source`: `retraction_watch_pubmed` or `pubmed_matched_negative`
+- `matched_positive_pmid`: original positive PMID for matched negatives
+- `group_id`: grouping key used to keep positives and their matched negatives in the same split
+- `split`: deterministic temporal split assignment
+
+## Caveats
+
+- This is a derived dataset. Do not assume the raw Retraction Watch CSV is redistributable just because the derived artifacts are published.
+- Label leakage is a real risk. Avoid using post-retraction metadata fields at training time.
+- Negatives are matched heuristically by journal and publication year, so this is not a causal benchmark.
+
+## Build Summary
+
+- Positives requested: {summary.get("positives_requested", 0)}
+- Positives written: {summary.get("positives_written", 0)}
+- Negatives written: {summary.get("negatives_written", 0)}
+- Rows written: {summary.get("rows_written", 0)}
+"""
+
+
+def write_hf_layout(
+    rows: list[dict[str, str | int]],
+    output_dir: Path,
+    summary: dict[str, object],
+    write_parquet: bool,
+) -> None:
+    hf_dir = output_dir / "hf"
+    hf_dir.mkdir(parents=True, exist_ok=True)
+
+    rows_by_split = {
+        split: [row for row in rows if row["split"] == split]
+        for split in SPLIT_NAMES
+    }
+    for split, split_rows in rows_by_split.items():
+        write_jsonl(hf_dir / f"{split}.jsonl", split_rows)
+
+    if write_parquet:
+        try:
+            import pyarrow as pa
+            import pyarrow.parquet as pq
+        except ImportError as exc:
+            raise SystemExit("`--write-parquet` requires `pyarrow`. Install it with `pip install pyarrow`.") from exc
+
+        for split, split_rows in rows_by_split.items():
+            table = pa.Table.from_pylist(split_rows)
+            pq.write_table(table, hf_dir / f"{split}.parquet")
+
+    (hf_dir / "README.md").write_text(render_dataset_card(summary), encoding="utf-8")
+
+
+def write_outputs(
+    rows: list[dict[str, str | int]],
+    output_dir: Path,
+    summary: dict[str, object],
+    write_parquet: bool,
+) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     fieldnames = [
         "label",
@@ -435,6 +582,8 @@ def write_outputs(rows: list[dict[str, str | int]], output_dir: Path, summary: d
         "publication_year",
         "source",
         "matched_positive_pmid",
+        "group_id",
+        "split",
         "rw_record_id",
         "rw_retraction_nature",
         "rw_retraction_reason",
@@ -450,12 +599,11 @@ def write_outputs(rows: list[dict[str, str | int]], output_dir: Path, summary: d
         writer.writerows(rows)
 
     jsonl_path = output_dir / "dataset.jsonl"
-    with jsonl_path.open("w", encoding="utf-8") as handle:
-        for row in rows:
-            handle.write(json.dumps(row, ensure_ascii=True) + "\n")
+    write_jsonl(jsonl_path, rows)
 
     summary_path = output_dir / "summary.json"
     summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_hf_layout(rows, output_dir, summary, write_parquet=write_parquet)
 
 
 def parse_args() -> argparse.Namespace:
@@ -478,6 +626,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--negatives-per-positive", type=int, default=2)
     parser.add_argument("--negative-candidate-pool-size", type=int, default=200)
     parser.add_argument("--seed", type=int, default=7)
+    parser.add_argument("--write-parquet", action="store_true", help="Write split Parquet files in the Hugging Face layout.")
     parser.add_argument("--force-download", action="store_true", help="Re-download the Retraction Watch CSV.")
     return parser.parse_args()
 
@@ -518,6 +667,7 @@ def main() -> int:
     )
 
     rows = build_dataset_rows(seeds, positive_records, negative_matches)
+    split_counts = assign_splits(rows)
     total_negatives = sum(1 for row in rows if row["label"] == 0)
     summary = {
         "crossref_csv": str(csv_path),
@@ -526,8 +676,9 @@ def main() -> int:
         "negatives_written": total_negatives,
         "rows_written": len(rows),
         "negatives_per_positive_target": args.negatives_per_positive,
+        "split_counts": split_counts,
     }
-    write_outputs(rows, args.output_dir, summary)
+    write_outputs(rows, args.output_dir, summary, write_parquet=args.write_parquet)
     log(f"Wrote dataset with {len(rows)} rows to {args.output_dir}")
     return 0
 

@@ -103,6 +103,9 @@ class DatasetBuilderTests(unittest.TestCase):
             self.assertEqual(summary["positives_written"], 2)
             self.assertEqual(summary["negatives_written"], 2)
             self.assertEqual(summary["rows_written"], 4)
+            self.assertEqual(summary["split_counts"]["train"], 2)
+            self.assertEqual(summary["split_counts"]["validation"], 0)
+            self.assertEqual(summary["split_counts"]["test"], 2)
 
             with (output_dir / "dataset.csv").open(newline="", encoding="utf-8") as handle:
                 rows = list(csv.DictReader(handle))
@@ -113,6 +116,13 @@ class DatasetBuilderTests(unittest.TestCase):
             self.assertEqual({row["pmid"] for row in positive_rows}, {"111111", "222222"})
             self.assertEqual({row["pmid"] for row in negative_rows}, {"333333", "444444"})
             self.assertEqual({row["matched_positive_pmid"] for row in negative_rows}, {"111111", "222222"})
+            self.assertEqual({row["split"] for row in rows}, {"train", "test"})
+
+            hf_dir = output_dir / "hf"
+            self.assertTrue((hf_dir / "train.jsonl").exists())
+            self.assertTrue((hf_dir / "validation.jsonl").exists())
+            self.assertTrue((hf_dir / "test.jsonl").exists())
+            self.assertTrue((hf_dir / "README.md").exists())
 
 
 if __name__ == "__main__":
