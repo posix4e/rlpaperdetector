@@ -1,0 +1,29 @@
+{
+  "name": "strict_retraction_judge_v1",
+  "decision_tokens": [
+    "<KEEP>",
+    "<RETRACT>"
+  ],
+  "dimensions": [
+    {
+      "id": "decision_correctness",
+      "description": "Final decision token matches the gold label."
+    },
+    {
+      "id": "paper_specificity",
+      "description": "Reasoning uses paper-specific details from title or abstract rather than generic boilerplate."
+    },
+    {
+      "id": "methodological_substance",
+      "description": "Reasoning discusses design, evidence quality, or failure mode substance."
+    },
+    {
+      "id": "uncertainty_calibration",
+      "description": "Reasoning avoids overclaiming and acknowledges uncertainty or review posture."
+    },
+    {
+      "id": "format_compliance",
+      "description": "Completion ends with exactly one final decision token after rationale text."
+    }
+  ]
+}

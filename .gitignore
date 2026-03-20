@@ -4,5 +4,7 @@ __pycache__/
 .venv/
 artifacts/
 data/
+preferences/
 reports/
 state/
+outputs/

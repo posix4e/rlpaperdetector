@@ -7,7 +7,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from rlpaperdetector.predict_baseline import main
+from rlpaperdetector.preference_dataset_from_labels import main
 
 
 if __name__ == "__main__":

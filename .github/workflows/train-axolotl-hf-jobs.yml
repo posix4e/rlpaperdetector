@@ -1,0 +1,81 @@
+name: Train Axolotl Model On Hugging Face Jobs
+
+on:
+  workflow_dispatch:
+    inputs:
+      hf_pref_repo_id:
+        description: Hugging Face dataset repo id containing the built preference package
+        required: true
+        type: string
+      train_config:
+        description: Axolotl config to use
+        required: true
+        default: configs/axolotl/retraction_orpo.yaml
+        type: string
+      hf_model_repo_id:
+        description: Hugging Face model repo id to upload checkpoints to
+        required: true
+        type: string
+      private_repo:
+        description: Create the Hugging Face model repo as private
+        required: true
+        default: true
+        type: boolean
+      job_flavor:
+        description: Hugging Face Jobs hardware flavor
+        required: true
+        default: a10g-small
+        type: string
+      job_timeout:
+        description: Hugging Face Jobs timeout, for example 8h
+        required: true
+        default: 8h
+        type: string
+      job_namespace:
+        description: Optional Hugging Face namespace for the job owner
+        required: false
+        default: ""
+        type: string
+      wait_for_completion:
+        description: Wait for the remote Hugging Face Job to complete before ending the workflow
+        required: true
+        default: false
+        type: boolean
+
+jobs:
+  submit-job:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Hugging Face Hub
+        run: python -m pip install --upgrade pip huggingface_hub
+
+      - name: Submit Axolotl training job to Hugging Face Jobs
+        run: |
+          args=(
+            --hf-pref-repo-id "${{ inputs.hf_pref_repo_id }}"
+            --hf-model-repo-id "${{ inputs.hf_model_repo_id }}"
+            --train-config "${{ inputs.train_config }}"
+            --flavor "${{ inputs.job_flavor }}"
+            --timeout "${{ inputs.job_timeout }}"
+          )
+          if [ "${{ inputs.private_repo }}" = "true" ]; then
+            args+=(--private-repo)
+          fi
+          if [ -n "${{ inputs.job_namespace }}" ]; then
+            args+=(--namespace "${{ inputs.job_namespace }}")
+          fi
+          if [ "${{ inputs.wait_for_completion }}" = "true" ]; then
+            args+=(--wait)
+          fi
+          python submit_hf_training_job.py "${args[@]}"

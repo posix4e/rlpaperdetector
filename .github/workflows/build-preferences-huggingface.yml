@@ -1,0 +1,141 @@
+name: Build Preferences And Publish To Hugging Face
+
+on:
+  workflow_dispatch:
+    inputs:
+      crossref_email:
+        description: Email to use for Crossref and NCBI requests
+        required: true
+        type: string
+      hf_repo_id:
+        description: Hugging Face dataset repo id for preference data, for example username/rlpaperdetector-preferences
+        required: true
+        type: string
+      max_positives:
+        description: Number of positive seeds to fetch from Retraction Watch
+        required: true
+        default: "700"
+        type: string
+      negatives_per_positive:
+        description: Matched negatives per positive
+        required: true
+        default: "2"
+        type: string
+      preference_max_papers:
+        description: Max labeled papers to turn into preference data
+        required: true
+        default: "2000"
+        type: string
+      launch_training_job:
+        description: Submit a Hugging Face GPU training job after publishing the preference package
+        required: true
+        default: false
+        type: boolean
+      train_config:
+        description: Axolotl config to use when launching training
+        required: true
+        default: configs/axolotl/retraction_orpo.yaml
+        type: string
+      hf_model_repo_id:
+        description: Hugging Face model repo id for training outputs when launching training
+        required: false
+        default: ""
+        type: string
+      job_flavor:
+        description: Hugging Face Jobs hardware flavor when launching training
+        required: true
+        default: a10g-small
+        type: string
+      job_timeout:
+        description: Hugging Face Jobs timeout when launching training
+        required: true
+        default: 8h
+        type: string
+      job_namespace:
+        description: Optional Hugging Face namespace for the launched training job
+        required: false
+        default: ""
+        type: string
+      private_repo:
+        description: Create the Hugging Face dataset repo as private
+        required: true
+        default: true
+        type: boolean
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Hugging Face Hub
+        run: python -m pip install --upgrade pip huggingface_hub
+
+      - name: Build labeled dataset
+        run: |
+          python build_dataset.py \
+            --crossref-email "${{ inputs.crossref_email }}" \
+            --max-positives "${{ inputs.max_positives }}" \
+            --negatives-per-positive "${{ inputs.negatives_per_positive }}" \
+            --output-dir data/preferences_build
+
+      - name: Build preference corpus
+        run: |
+          python build_rw_preferences.py \
+            --dataset data/preferences_build/dataset.csv \
+            --output-dir preferences/full \
+            --max-papers "${{ inputs.preference_max_papers }}"
+
+      - name: Build held-out probes
+        run: |
+          python build_probe_set.py \
+            --pmid-file configs/probe_pmids.txt \
+            --crossref-email "${{ inputs.crossref_email }}" \
+            --output preferences/full/probes/probe_papers.jsonl
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: preference-build-artifacts
+          path: |
+            data/preferences_build/summary.json
+            preferences/full/
+
+      - name: Publish preference package to Hugging Face Hub
+        run: |
+          args=(--repo-id "${{ inputs.hf_repo_id }}" --folder preferences/full)
+          if [ "${{ inputs.private_repo }}" = "true" ]; then
+            args+=(--private)
+          fi
+          python publish_to_huggingface.py "${args[@]}"
+
+      - name: Submit Hugging Face Jobs training run
+        if: ${{ inputs.launch_training_job }}
+        run: |
+          if [ -z "${{ inputs.hf_model_repo_id }}" ]; then
+            echo "hf_model_repo_id is required when launch_training_job=true"
+            exit 1
+          fi
+          args=(
+            --hf-pref-repo-id "${{ inputs.hf_repo_id }}"
+            --hf-model-repo-id "${{ inputs.hf_model_repo_id }}"
+            --train-config "${{ inputs.train_config }}"
+            --flavor "${{ inputs.job_flavor }}"
+            --timeout "${{ inputs.job_timeout }}"
+          )
+          if [ "${{ inputs.private_repo }}" = "true" ]; then
+            args+=(--private-repo)
+          fi
+          if [ -n "${{ inputs.job_namespace }}" ]; then
+            args+=(--namespace "${{ inputs.job_namespace }}")
+          fi
+          python submit_hf_training_job.py "${args[@]}"

@@ -1,5 +1,0 @@
-# One PubMed query per line.
-# Example topics:
-cancer AND ("image manipulation" OR "western blot" OR "raw data")
-machine learning AND healthcare
-randomized controlled trial AND obstetrics

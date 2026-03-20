@@ -1,0 +1,72 @@
+base_model: Qwen/Qwen2.5-3B-Instruct
+model_type: AutoModelForCausalLM
+tokenizer_type: AutoTokenizer
+
+chat_template: tokenizer_default
+
+adapter: qlora
+load_in_4bit: true
+strict: false
+
+sequence_len: 2048
+sample_packing: false
+pad_to_sequence_len: true
+
+rl: dpo
+rl_beta: 0.1
+remove_unused_columns: false
+loss_type: hinge
+
+datasets:
+  - path: json
+    data_files:
+      - preferences/axolotl/dpo_train_expanded.jsonl
+    split: train
+    type: chat_template.default
+    field_messages: messages
+    field_chosen: chosen
+    field_rejected: rejected
+    message_property_mappings:
+      role: role
+      content: content
+    roles:
+      user: ["user"]
+      assistant: ["assistant"]
+      system: ["system"]
+  - path: json
+    data_files:
+      - preferences/axolotl/dpo_validation.jsonl
+    split: train
+    type: chat_template.default
+    field_messages: messages
+    field_chosen: chosen
+    field_rejected: rejected
+    message_property_mappings:
+      role: role
+      content: content
+    roles:
+      user: ["user"]
+      assistant: ["assistant"]
+      system: ["system"]
+
+val_set_size: 0
+output_dir: outputs/axolotl-dpo
+
+gradient_accumulation_steps: 8
+micro_batch_size: 1
+num_epochs: 1
+learning_rate: 1e-5
+lr_scheduler: cosine
+warmup_ratio: 0.03
+
+logging_steps: 10
+save_steps: 200
+eval_steps: 200
+save_total_limit: 2
+bf16: auto
+tf32: true
+
+special_tokens:
+  additional_special_tokens:
+    - "<KEEP>"
+    - "<RETRACT>"
