@@ -139,13 +139,14 @@ class PubMedClient:
                 backoff_seconds *= 2
         raise RuntimeError(f"Failed to fetch {url}")
 
-    def esearch(self, term: str, retmax: int) -> list[str]:
+    def esearch(self, term: str, retmax: int, retstart: int = 0) -> list[str]:
         payload = self._request(
             "esearch.fcgi",
             {
                 "db": "pubmed",
                 "retmode": "json",
                 "retmax": str(retmax),
+                "retstart": str(retstart),
                 "term": term,
             },
         )
