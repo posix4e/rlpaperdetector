@@ -21,7 +21,7 @@ def sanitize_label(value: str) -> str:
 def build_benchmark_job_script() -> str:
     return """set -euo pipefail
 cd /workspace
-python -m pip install --upgrade pip huggingface_hub anthropic
+python -m pip install anthropic
 mkdir -p benchmark_data benchmark_outputs
 python - <<'PY'
 import os

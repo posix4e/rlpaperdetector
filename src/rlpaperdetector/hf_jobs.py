@@ -18,7 +18,6 @@ def encode_file_base64(path: Path) -> str:
 def build_training_job_script() -> str:
     return """set -euo pipefail
 cd /workspace
-python -m pip install --upgrade pip huggingface_hub
 mkdir -p preferences outputs
 python - <<'PY'
 import os
