@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import http.client
 import json
 import random
 import re
@@ -111,7 +112,7 @@ class PubMedClient:
         )
 
         backoff_seconds = self.delay_seconds
-        for attempt in range(5):
+        for attempt in range(7):
             elapsed = time.monotonic() - self._last_request_at
             if elapsed < self.delay_seconds:
                 time.sleep(self.delay_seconds - elapsed)
@@ -122,12 +123,19 @@ class PubMedClient:
                 return payload
             except urllib.error.HTTPError as error:
                 self._last_request_at = time.monotonic()
-                if error.code not in {429, 500, 502, 503, 504} or attempt == 4:
+                if error.code not in {429, 500, 502, 503, 504} or attempt == 6:
                     raise
                 retry_after = error.headers.get("Retry-After")
                 sleep_seconds = float(retry_after) if retry_after and retry_after.isdigit() else backoff_seconds
                 log(f"NCBI returned HTTP {error.code}; retrying in {sleep_seconds:.2f}s")
                 time.sleep(sleep_seconds)
+                backoff_seconds *= 2
+            except (urllib.error.URLError, TimeoutError, http.client.RemoteDisconnected) as error:
+                self._last_request_at = time.monotonic()
+                if attempt == 6:
+                    raise
+                log(f"NCBI request failed with {type(error).__name__}; retrying in {backoff_seconds:.2f}s")
+                time.sleep(backoff_seconds)
                 backoff_seconds *= 2
         raise RuntimeError(f"Failed to fetch {url}")
 
