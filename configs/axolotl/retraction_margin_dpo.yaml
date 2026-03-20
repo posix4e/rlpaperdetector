@@ -7,6 +7,17 @@ chat_template: tokenizer_default
 adapter: qlora
 load_in_4bit: true
 strict: false
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.05
+lora_target_modules:
+  - q_proj
+  - k_proj
+  - v_proj
+  - o_proj
+  - gate_proj
+  - up_proj
+  - down_proj
 
 sequence_len: 2048
 sample_packing: false
