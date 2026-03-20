@@ -17,12 +17,12 @@ orpo_alpha: 0.1
 remove_unused_columns: false
 
 datasets:
-  - path: json
+  - ds_type: json
     data_files:
       - preferences/axolotl/orpo_train_expanded.jsonl
     split: train
     type: chat_template.argilla
-  - path: json
+  - ds_type: json
     data_files:
       - preferences/axolotl/orpo_validation.jsonl
     split: train

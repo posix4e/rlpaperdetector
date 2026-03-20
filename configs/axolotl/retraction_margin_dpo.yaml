@@ -18,7 +18,7 @@ remove_unused_columns: false
 loss_type: hinge
 
 datasets:
-  - path: json
+  - ds_type: json
     data_files:
       - preferences/axolotl/dpo_train_expanded.jsonl
     split: train
@@ -33,7 +33,7 @@ datasets:
       user: ["user"]
       assistant: ["assistant"]
       system: ["system"]
-  - path: json
+  - ds_type: json
     data_files:
       - preferences/axolotl/dpo_validation.jsonl
     split: train
