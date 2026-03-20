@@ -101,6 +101,18 @@ There is also a second workflow for standalone training submission:
 
 That workflow submits an Axolotl training run to Hugging Face Jobs using the official Axolotl cloud image. No self-hosted runner is required. You still need a Hugging Face account with access to Jobs and GPU hardware.
 
+For post-training comparison, this repo also includes:
+
+- `.github/workflows/benchmark-models-hf-jobs.yml`
+
+That workflow submits a Hugging Face GPU benchmark job that compares:
+
+- the fine-tuned judge in your model repo
+- the untuned base model
+- Claude via the Anthropic API when `ANTHROPIC_API_KEY` is set as a GitHub Actions secret
+
+Benchmark outputs are uploaded back into the Hugging Face model repo under `benchmarks/`.
+
 Recommended flow:
 
 1. run `.github/workflows/build-preferences-huggingface.yml`
@@ -139,6 +151,7 @@ This repo now includes:
 - `.github/workflows/publish-huggingface.yml` for manual dataset publication to Hugging Face Hub
 - `.github/workflows/build-preferences-huggingface.yml` for dataset -> preference package -> optional HF Jobs training submission
 - `.github/workflows/train-axolotl-hf-jobs.yml` for direct Hugging Face Jobs training submission
+- `.github/workflows/benchmark-models-hf-jobs.yml` for fine-tuned vs base vs Claude benchmarking
 
 The publish workflow expects a GitHub Actions secret named `HF_TOKEN`. Trigger it manually and provide:
 
