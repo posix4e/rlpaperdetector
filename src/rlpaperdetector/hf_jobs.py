@@ -34,9 +34,17 @@ python - <<'PY'
 import base64
 import os
 from pathlib import Path
+import yaml
 
 config_text = base64.b64decode(os.environ["AXOLOTL_CONFIG_B64"]).decode("utf-8")
-Path("train_config.yaml").write_text(config_text, encoding="utf-8")
+cfg = yaml.safe_load(config_text)
+for dataset in cfg.get("datasets", []):
+    local_files = []
+    for path in dataset.get("data_files", []):
+        filename = Path(path).name
+        local_files.append(str(Path("preferences") / "axolotl" / filename))
+    dataset["data_files"] = local_files
+Path("train_config.yaml").write_text(yaml.safe_dump(cfg, sort_keys=False), encoding="utf-8")
 PY
 axolotl train train_config.yaml
 python - <<'PY'
