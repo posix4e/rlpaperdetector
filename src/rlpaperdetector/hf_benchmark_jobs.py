@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import base64
 import os
-from datetime import datetime, timezone
+import re
 from pathlib import Path
 
 from rlpaperdetector.hf_jobs import AXOLOTL_CLOUD_IMAGE, TERMINAL_JOB_STAGES, wait_for_job
@@ -11,6 +11,11 @@ from rlpaperdetector.hf_jobs import AXOLOTL_CLOUD_IMAGE, TERMINAL_JOB_STAGES, wa
 
 def encode_file_base64(path: Path) -> str:
     return base64.b64encode(path.read_bytes()).decode("ascii")
+
+
+def sanitize_label(value: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9=_-]+", "_", value).strip("_")
+    return cleaned[:256] or "value"
 
 
 def build_benchmark_job_script() -> str:
@@ -138,7 +143,7 @@ def submit_benchmark_job(
         labels={
             "project": "rlpaperdetector",
             "task": "benchmark",
-            "base_model": base_model_id.replace("/", "_"),
+            "base_model": sanitize_label(base_model_id),
         },
         namespace=namespace,
         token=token,
