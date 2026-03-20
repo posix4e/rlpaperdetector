@@ -18,13 +18,11 @@ remove_unused_columns: false
 
 datasets:
   - ds_type: json
-    data_files:
-      - preferences/axolotl/orpo_train_expanded.jsonl
+    path: preferences/axolotl/orpo_train_expanded.jsonl
     split: train
     type: chat_template.argilla
   - ds_type: json
-    data_files:
-      - preferences/axolotl/orpo_validation.jsonl
+    path: preferences/axolotl/orpo_validation.jsonl
     split: train
     type: chat_template.argilla
 

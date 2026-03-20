@@ -39,11 +39,16 @@ import yaml
 config_text = base64.b64decode(os.environ["AXOLOTL_CONFIG_B64"]).decode("utf-8")
 cfg = yaml.safe_load(config_text)
 for dataset in cfg.get("datasets", []):
-    local_files = []
-    for path in dataset.get("data_files", []):
-        filename = Path(path).name
-        local_files.append(str(Path("preferences") / "axolotl" / filename))
-    dataset["data_files"] = local_files
+    configured_path = dataset.get("path")
+    if configured_path:
+        dataset["path"] = str(Path("preferences") / "axolotl" / Path(configured_path).name)
+    elif dataset.get("data_files"):
+        local_files = []
+        for path in dataset.get("data_files", []):
+            filename = Path(path).name
+            local_files.append(str(Path("preferences") / "axolotl" / filename))
+        dataset["data_files"] = local_files
+        dataset["path"] = local_files[0]
 Path("train_config.yaml").write_text(yaml.safe_dump(cfg, sort_keys=False), encoding="utf-8")
 PY
 axolotl train train_config.yaml

@@ -19,8 +19,7 @@ loss_type: hinge
 
 datasets:
   - ds_type: json
-    data_files:
-      - preferences/axolotl/dpo_train_expanded.jsonl
+    path: preferences/axolotl/dpo_train_expanded.jsonl
     split: train
     type: chat_template.default
     field_messages: messages
@@ -34,8 +33,7 @@ datasets:
       assistant: ["assistant"]
       system: ["system"]
   - ds_type: json
-    data_files:
-      - preferences/axolotl/dpo_validation.jsonl
+    path: preferences/axolotl/dpo_validation.jsonl
     split: train
     type: chat_template.default
     field_messages: messages
