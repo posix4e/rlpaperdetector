@@ -1,0 +1,65 @@
+name: Create Hugging Face Repos
+
+on:
+  workflow_dispatch:
+    inputs:
+      hf_dataset_repo_id:
+        description: Hugging Face dataset repo id to create
+        required: true
+        default: posix4e/rlpaperdetector-preferences
+        type: string
+      hf_model_repo_id:
+        description: Hugging Face model repo id to create
+        required: true
+        default: posix4e/rlpaperdetector-judge
+        type: string
+      private_repo:
+        description: Create the Hugging Face repos as private
+        required: true
+        default: true
+        type: boolean
+
+jobs:
+  create-repos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Hugging Face Hub
+        run: python -m pip install --upgrade pip huggingface_hub
+
+      - name: Create dataset and model repos
+        run: |
+          python - <<'PY'
+          import os
+          from huggingface_hub import HfApi
+
+          api = HfApi(token=os.environ["HF_TOKEN"])
+          private = os.environ["HF_PRIVATE_REPO"].lower() == "true"
+
+          api.create_repo(
+              repo_id=os.environ["HF_DATASET_REPO_ID"],
+              repo_type="dataset",
+              private=private,
+              exist_ok=True,
+          )
+          api.create_repo(
+              repo_id=os.environ["HF_MODEL_REPO_ID"],
+              repo_type="model",
+              private=private,
+              exist_ok=True,
+          )
+          print(f"dataset_repo={os.environ['HF_DATASET_REPO_ID']}")
+          print(f"model_repo={os.environ['HF_MODEL_REPO_ID']}")
+          PY
+        env:
+          HF_DATASET_REPO_ID: ${{ inputs.hf_dataset_repo_id }}
+          HF_MODEL_REPO_ID: ${{ inputs.hf_model_repo_id }}
+          HF_PRIVATE_REPO: ${{ inputs.private_repo }}
