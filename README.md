@@ -68,6 +68,8 @@ Axolotl configs are included at:
 
 The intended completion style is: rubric-aligned rationale first, then a single terminal decision token such as `<RETRACT>` or `<KEEP>`.
 
+The current default remote-training path uses `configs/axolotl/retraction_margin_dpo.yaml`. The ORPO config is still included for experimentation, but the automated GitHub Actions and Hugging Face Jobs path defaults to Margin-DPO.
+
 ## Why Use A Custom-Trained Model
 
 This repo uses a custom-trained judge instead of relying on a general-purpose model such as Grok because the goal is consistency and control, not open-ended conversation.

@@ -10,7 +10,7 @@ on:
       train_config:
         description: Axolotl config to use
         required: true
-        default: configs/axolotl/retraction_orpo.yaml
+        default: configs/axolotl/retraction_margin_dpo.yaml
         type: string
       hf_model_repo_id:
         description: Hugging Face model repo id to upload checkpoints to
