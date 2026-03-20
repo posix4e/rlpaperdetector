@@ -68,6 +68,16 @@ Axolotl configs are included at:
 
 The intended completion style is: rubric-aligned rationale first, then a single terminal decision token such as `<RETRACT>` or `<KEEP>`.
 
+## Why Use A Custom-Trained Model
+
+This repo uses a custom-trained judge instead of relying on a general-purpose model such as Grok because the goal is consistency and control, not open-ended conversation.
+
+- The judge is trained against a fixed rubric, fixed label space, and fixed output format.
+- The model can be evaluated reproducibly on the same distribution it was trained for.
+- Preference data, failure cases, and checkpoints are all versioned and inspectable.
+- The output format is constrained to a rationale followed by a terminal decision token such as `<RETRACT>` or `<KEEP>`.
+- A general-purpose model may still be stronger in raw reasoning, but it is not tuned to this exact task and its behavior can drift over time.
+
 ## GitHub Actions Automation
 
 This repo now includes a manual GitHub Actions workflow to do the whole data-prep path without local commands:
