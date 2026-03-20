@@ -17,6 +17,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
+from rlpaperdetector.exclusions import DEFAULT_EXCLUSIONS_PATH, load_exclusions, pubmed_record_is_excluded
+
 
 CROSSREF_RETRACTION_WATCH_URL = "https://api.labs.crossref.org/data/retractionwatch?{email}"
 DEFAULT_CROSSREF_EMAIL = "test@example.org"
@@ -317,6 +319,7 @@ def sample_negative_records(
     negatives_per_positive: int,
     seed: int,
     candidate_pool_size: int,
+    exclusions: dict[str, set[str]],
 ) -> dict[str, list[PubMedRecord]]:
     rng = random.Random(seed)
     positive_pmids = set(positives)
@@ -348,7 +351,12 @@ def sample_negative_records(
                     metadata_cache.update(client.efetch(missing))
                 for pmid in batch:
                     record = metadata_cache.get(pmid)
-                    if not record or not record.has_usable_text or record.is_retracted_publication:
+                    if (
+                        not record
+                        or not record.has_usable_text
+                        or record.is_retracted_publication
+                        or pubmed_record_is_excluded(record.pmid, record.doi, record.title, exclusions)
+                    ):
                         continue
                     chosen.append(record)
                     seen_negative_pmids.add(record.pmid)
@@ -636,6 +644,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--negative-candidate-pool-size", type=int, default=200)
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--write-parquet", action="store_true", help="Write split Parquet files in the Hugging Face layout.")
+    parser.add_argument("--exclusions-file", type=Path, default=None, help="JSON file listing PMIDs/DOIs/titles to exclude.")
     parser.add_argument("--force-download", action="store_true", help="Re-download the Retraction Watch CSV.")
     return parser.parse_args()
 
@@ -660,8 +669,13 @@ def main() -> int:
 
     log(f"Using {len(positive_pmids)} positive PMIDs from Retraction Watch")
     client = PubMedClient(email=args.crossref_email)
+    exclusions = load_exclusions(args.exclusions_file)
     positive_records = fetch_pubmed_records(client, positive_pmids)
-    positive_records = {pmid: record for pmid, record in positive_records.items() if record.has_usable_text}
+    positive_records = {
+        pmid: record
+        for pmid, record in positive_records.items()
+        if record.has_usable_text and not pubmed_record_is_excluded(record.pmid, record.doi, record.title, exclusions)
+    }
     dropped_pmids = sorted(set(positive_pmids) - set(positive_records))
     if dropped_pmids:
         log(f"Dropped {len(dropped_pmids)} positives with missing text or unusable PubMed metadata")
@@ -673,6 +687,7 @@ def main() -> int:
         negatives_per_positive=args.negatives_per_positive,
         seed=args.seed,
         candidate_pool_size=args.negative_candidate_pool_size,
+        exclusions=exclusions,
     )
 
     rows = build_dataset_rows(seeds, positive_records, negative_matches)
@@ -686,6 +701,7 @@ def main() -> int:
         "rows_written": len(rows),
         "negatives_per_positive_target": args.negatives_per_positive,
         "split_counts": split_counts,
+        "exclusions_file": str(args.exclusions_file or DEFAULT_EXCLUSIONS_PATH),
     }
     write_outputs(rows, args.output_dir, summary, write_parquet=args.write_parquet)
     log(f"Wrote dataset with {len(rows)} rows to {args.output_dir}")

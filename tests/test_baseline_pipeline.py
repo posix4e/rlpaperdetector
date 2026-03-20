@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -42,7 +43,7 @@ class BaselinePipelineTests(unittest.TestCase):
             prediction_path = tmp / "predictions.jsonl"
             self.make_dataset(dataset_path)
 
-            with unittest.mock.patch.object(sys, "argv", ["train_baseline.py", "--dataset", str(dataset_path), "--output-dir", str(model_dir)]):
+            with mock.patch.object(sys, "argv", ["train_baseline.py", "--dataset", str(dataset_path), "--output-dir", str(model_dir)]):
                 self.assertEqual(train_baseline.main(), 0)
 
             model_path = model_dir / "model.json"
@@ -55,15 +56,38 @@ class BaselinePipelineTests(unittest.TestCase):
             test_metrics = model.evaluate(baseline.split_rows(baseline.load_rows(dataset_path))["test"])
             self.assertGreaterEqual(test_metrics["accuracy"], 0.5)
 
-            with unittest.mock.patch.object(sys, "argv", ["predict.py", "--model", str(model_path), "--input-file", str(dataset_path), "--output", str(prediction_path)]):
+            with mock.patch.object(sys, "argv", ["predict.py", "--model", str(model_path), "--input-file", str(dataset_path), "--output", str(prediction_path)]):
                 self.assertEqual(predict_baseline.main(), 0)
 
             predictions = [json.loads(line) for line in prediction_path.read_text(encoding="utf-8").splitlines() if line.strip()]
             self.assertEqual(len(predictions), 6)
             self.assertIn("score", predictions[0])
 
-            with unittest.mock.patch.object(sys, "argv", ["eval.py", "--model", str(model_path), "--dataset", str(dataset_path), "--split", "test"]):
+            with mock.patch.object(sys, "argv", ["eval.py", "--model", str(model_path), "--dataset", str(dataset_path), "--split", "test"]):
                 self.assertEqual(eval_baseline.main(), 0)
+
+    def test_training_excludes_banned_pmid(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            dataset_path = tmp / "dataset.csv"
+            model_dir = tmp / "model"
+            exclusions_path = tmp / "excluded.json"
+            self.make_dataset(dataset_path)
+
+            with dataset_path.open(newline="", encoding="utf-8") as handle:
+                rows = list(csv.DictReader(handle))
+            rows[0]["pmid"] = "32817561"
+            with dataset_path.open("w", encoding="utf-8", newline="") as handle:
+                writer = csv.DictWriter(handle, fieldnames=list(rows[0].keys()))
+                writer.writeheader()
+                writer.writerows(rows)
+
+            exclusions_path.write_text(json.dumps({"pmids": ["32817561"], "dois": [], "title_substrings": []}), encoding="utf-8")
+            with mock.patch.object(sys, "argv", ["train_baseline.py", "--dataset", str(dataset_path), "--output-dir", str(model_dir), "--exclusions-file", str(exclusions_path)]):
+                self.assertEqual(train_baseline.main(), 0)
+
+            _, metadata = baseline.load_model(model_dir / "model.json")
+            self.assertEqual(metadata["metrics"]["train"]["count"], 1)
 
 
 if __name__ == "__main__":

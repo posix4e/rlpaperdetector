@@ -32,6 +32,8 @@ Outputs land in `data/processed/`:
 
 The dataset contains positives from original retracted papers and matched negatives sampled from PubMed by journal and publication year.
 
+By default, dataset building and baseline training also apply [excluded_papers.json](/home/ubuntu/src/rlpaperdetector/configs/excluded_papers.json#L1) so specific PMIDs/DOIs/titles can be kept out of all generated datasets and training runs.
+
 ## Baseline Model
 
 Train a dependency-free baseline model:

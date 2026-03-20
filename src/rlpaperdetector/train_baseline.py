@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from rlpaperdetector.baseline import NaiveBayesRetractionModel, load_rows, save_model, split_rows
+from rlpaperdetector.exclusions import load_exclusions, row_is_excluded
 
 
 def parse_args() -> argparse.Namespace:
@@ -13,12 +14,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, default=Path("artifacts/baseline"))
     parser.add_argument("--threshold", type=float, default=0.5)
     parser.add_argument("--alpha", type=float, default=1.0, help="Laplace smoothing strength.")
+    parser.add_argument("--exclusions-file", type=Path, default=None, help="JSON file listing PMIDs/DOIs/titles to exclude.")
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
     rows = load_rows(args.dataset)
+    exclusions = load_exclusions(args.exclusions_file)
+    rows = [row for row in rows if not row_is_excluded(row, exclusions)]
     split_map = split_rows(rows)
     train_rows = split_map.get("train", [])
     validation_rows = split_map.get("validation", [])
@@ -36,6 +40,7 @@ def main() -> int:
     args.output_dir.mkdir(parents=True, exist_ok=True)
     metadata = {
         "dataset": str(args.dataset),
+        "exclusions_file": str(args.exclusions_file or "configs/excluded_papers.json"),
         "threshold": args.threshold,
         "alpha": args.alpha,
         "metrics": metrics,
