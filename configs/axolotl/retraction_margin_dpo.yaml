@@ -32,20 +32,6 @@ datasets:
       user: ["user"]
       assistant: ["assistant"]
       system: ["system"]
-  - ds_type: json
-    path: preferences/axolotl/dpo_validation.jsonl
-    split: train
-    type: chat_template.default
-    field_messages: messages
-    field_chosen: chosen
-    field_rejected: rejected
-    message_property_mappings:
-      role: role
-      content: content
-    roles:
-      user: ["user"]
-      assistant: ["assistant"]
-      system: ["system"]
 
 val_set_size: 0
 output_dir: outputs/axolotl-dpo

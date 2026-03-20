@@ -21,10 +21,6 @@ datasets:
     path: preferences/axolotl/orpo_train_expanded.jsonl
     split: train
     type: chat_template.argilla
-  - ds_type: json
-    path: preferences/axolotl/orpo_validation.jsonl
-    split: train
-    type: chat_template.argilla
 
 val_set_size: 0
 output_dir: outputs/axolotl-orpo
